@@ -158,7 +158,7 @@ def mood_page():
                 const mood = document.getElementById('moodInput').value;
                 if (mood) {{
                     document.getElementById('result').innerHTML = '<p>Generating playlist for: ' + mood + '</p>';
-                    // We'll implement the actual API call later
+
                 }}
             }});
         </script>
@@ -168,16 +168,12 @@ def mood_page():
 
 @app.route('/api/recommendations')
 def get_recommendations():
-    """API endpoint to get playlist recommendations"""
     if 'access_token' not in session:
         return jsonify({'error': 'Not authenticated'}), 401
     
     mood = request.args.get('mood')
     if not mood:
         return jsonify({'error': 'Mood parameter required'}), 400
-    
-    # For now, return a placeholder response
-    # We'll implement the actual Spotify API integration next
     return jsonify({
         'mood': mood,
         'message': 'Playlist generation coming soon!',
