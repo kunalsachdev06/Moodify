@@ -317,4 +317,4 @@ if __name__ == '__main__':
     print("Starting Moodify server...")
     print(f"Spotify Client ID: {SPOTIFY_CLIENT_ID[:8]}...")
     print(f"Redirect URI: {REDIRECT_URI}")
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5500, host='127.0.0.1')
