@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, session, jsonify, render_template_string
+from flask import Flask, request, redirect, session, jsonify, send_from_directory
 import requests
 import base64
 import secrets
@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../static', static_url_path='/static')
 app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(16))
 
 SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
@@ -21,23 +21,7 @@ SPOTIFY_API_BASE = 'https://api.spotify.com/v1'
 
 @app.route('/')
 def index():
-    return '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Moodify - Login</title>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-    </head>
-    <body>
-        <h1>Welcome to Moodify</h1>
-        <p>Generate playlists based on your mood!</p>
-        <a href="/login">
-            <button>Login with Spotify</button>
-        </a>
-    </body>
-    </html>
-    '''
+    return send_from_directory('../frontend', 'index.html')
 
 @app.route('/login')
 def login():
@@ -131,68 +115,7 @@ def mood_page():
     if 'access_token' not in session:
         return redirect('/')
     
-    display_name = session.get('display_name', 'User')
-    
-    return f'''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Moodify - What's Your Mood?</title>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-    </head>
-    <body>
-        <h1>Hi {display_name}! What's your mood?</h1>
-        <p>Describe how you're feeling and we'll create the perfect playlist</p>
-        
-        <form id="moodForm">
-            <input type="text" id="moodInput" placeholder="e.g., chill rainy evening 🌧️" style="width: 300px; padding: 10px;">
-            <button type="submit">Generate Playlist</button>
-        </form>
-        
-        <div id="result"></div>
-        
-        <script>
-            document.getElementById('moodForm').addEventListener('submit', async function(e) {{
-                e.preventDefault();
-                const mood = document.getElementById('moodInput').value;
-                if (mood) {{
-                    document.getElementById('result').innerHTML = '<p>Loading...</p>';
-                    
-                    try {{
-                        const response = await fetch('/api/recommendations?mood=' + encodeURIComponent(mood));
-                        const data = await response.json();
-                        
-                        if (data.tracks && data.tracks.length > 0) {{
-                            let html = '<h3>Your Playlist:</h3><div class="tracks">';
-                            data.tracks.forEach(track => {{
-                                html += `
-                                    <div class="track" style="border: 1px solid #ccc; margin: 10px; padding: 15px; border-radius: 8px;">
-                                        ${{track.image ? '<img src="' + track.image + '" alt="Album" style="width: 60px; height: 60px; border-radius: 4px; float: left; margin-right: 15px;">' : ''}}
-                                        <div>
-                                            <strong>${{track.name}}</strong><br>
-                                            <span>${{track.artist}}</span><br>
-                                            <small>${{track.album}}</small><br>
-                                            ${{track.preview_url ? '<audio controls style="margin-top: 5px;"><source src="' + track.preview_url + '" type="audio/mpeg"></audio>' : ''}}
-                                        </div>
-                                        <div style="clear: both;"></div>
-                                    </div>
-                                `;
-                            }});
-                            html += '</div>';
-                            document.getElementById('result').innerHTML = html;
-                        }} else {{
-                            document.getElementById('result').innerHTML = '<p>No tracks found for this mood. Try a different description!</p>';
-                        }}
-                    }} catch (error) {{
-                        document.getElementById('result').innerHTML = '<p>Error generating playlist. Please try again.</p>';
-                    }}
-                }}
-            }});
-        </script>
-    </body>
-    </html>
-    '''
+    return send_from_directory('../frontend', 'mood.html')
 
 @app.route('/api/recommendations')
 def get_recommendations():

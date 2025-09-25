@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Moodify - What's Your Vibe?</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="mood-input-section">
+            <h1>What's your vibe today?</h1>
+            <p>Describe your mood and we'll craft the perfect playlist</p>
+            
+            <form id="moodForm" class="mood-form">
+                <div class="input-container">
+                    <input type="text" 
+                           id="moodInput" 
+                           placeholder="e.g., rainy day vibes, pump me up, study focus..."
+                           class="mood-input">
+                    <button type="submit" class="generate-btn">Generate Playlist</button>
+                </div>
+                
+                <div class="mood-suggestions">
+                    <span class="suggestion-tag" data-mood="chill rainy evening">🌧️ Rainy Day</span>
+                    <span class="suggestion-tag" data-mood="energetic workout">💪 Pump Up</span>
+                    <span class="suggestion-tag" data-mood="focus study mode">📚 Focus</span>
+                    <span class="suggestion-tag" data-mood="happy party vibes">🎉 Party Time</span>
+                    <span class="suggestion-tag" data-mood="relaxing meditation">🧘 Zen Mode</span>
+                </div>
+            </form>
+        </div>
+        
+        <div id="result" class="results-section"></div>
+        <div id="loading" class="loading-section" style="display: none;">
+            <div class="loading-spinner"></div>
+            <p>Creating your perfect playlist...</p>
+        </div>
+    </div>
+    
+    <script src="/static/js/mood.js"></script>
+</body>
+</html>
