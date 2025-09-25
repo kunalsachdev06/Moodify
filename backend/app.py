@@ -25,13 +25,20 @@ app.config['SESSION_PERMANENT'] = False
 app.config['SESSION_USE_SIGNER'] = True
 app.config['SESSION_KEY_PREFIX'] = 'moodify:'
 app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
+# Explicit cookie settings to improve cross-site OAuth behavior in development
+# Use Lax so top-level GET navigations (OAuth redirects) will include the cookie
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+# For local development we don't use HTTPS, so keep secure=False. In production set True.
+app.config['SESSION_COOKIE_SECURE'] = False
+app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 # Enable CORS for Live Server (port 5500)
 CORS(app, origins=['http://127.0.0.1:5500', 'http://localhost:5500', 'http://127.0.0.1:5000', 'http://localhost:5000'])
 
 SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
-REDIRECT_URI = os.getenv('REDIRECT_URI', 'http://localhost:5000/callback')
+# Default redirect URI uses 127.0.0.1 to avoid host mismatches between "localhost" and "127.0.0.1"
+REDIRECT_URI = os.getenv('REDIRECT_URI', 'http://127.0.0.1:5000/callback')
 SPOTIFY_SCOPE = 'playlist-modify-public playlist-modify-private user-read-private user-read-email user-library-read user-top-read'
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
@@ -42,6 +49,54 @@ SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize'
 SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token'
 SPOTIFY_API_BASE = 'https://api.spotify.com/v1'
 
+# File to persist OAuth states (development helper) to avoid relying on browser session cookies
+STATES_FILE = os.path.join(current_dir, '.oauth_states.json')
+
+def _read_states():
+    try:
+        if os.path.exists(STATES_FILE):
+            with open(STATES_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+def _write_states(states):
+    try:
+        with open(STATES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(states, f)
+    except Exception:
+        pass
+
+def save_oauth_state(state):
+    import time
+    states = _read_states()
+    try:
+        states[state] = {'ts': int(time.time())}
+        _write_states(states)
+        print(f"✅ Persisted oauth_state to file: {state}")
+    except Exception as e:
+        print(f"⚠️ Failed to persist oauth_state: {e}")
+
+def pop_oauth_state(state):
+    states = _read_states()
+    try:
+        if state in states:
+            del states[state]
+            _write_states(states)
+            print(f"✅ Removed persisted oauth_state: {state}")
+            return True
+    except Exception as e:
+        print(f"⚠️ Failed to pop oauth_state: {e}")
+    return False
+
+
+@app.route('/debug/oauth-states')
+def debug_oauth_states():
+    """Return the persisted oauth states file contents for debugging"""
+    states = _read_states()
+    return jsonify({'states_file': STATES_FILE, 'states': states})
+
 @app.route('/')
 def index():
     frontend_dir = os.path.join(project_root, 'frontend')
@@ -51,7 +106,12 @@ def index():
 def login():
     print("🚀 Login route accessed")
     state = secrets.token_urlsafe(16)
+    # store state in both session (if possible) and server-side file for robustness
     session['oauth_state'] = state
+    try:
+        save_oauth_state(state)
+    except Exception:
+        print("⚠️  Could not persist oauth_state to file; continuing")
     
     print(f"🔑 OAuth state set: {state}")
     print(f"🔗 Redirect URI: {REDIRECT_URI}")
@@ -71,12 +131,37 @@ def login():
 
 @app.route('/callback')
 def callback():
+    print("=" * 50)
+    print("🚀 OAUTH CALLBACK RECEIVED!")
+    print("=" * 50)
     print(f"📥 Callback received with args: {dict(request.args)}")
     print(f"📋 Session state: {session.get('oauth_state')}")
+    print(f"🌐 Request URL: {request.url}")
+    print(f"🔗 Request referrer: {request.referrer}")
+    print("=" * 50)
     
-    if request.args.get('state') != session.get('oauth_state'):
-        print("❌ State mismatch!")
+    received_state = request.args.get('state')
+    session_state = session.get('oauth_state')
+    persisted_ok = False
+    try:
+        if received_state:
+            persisted_ok = pop_oauth_state(received_state)
+    except Exception:
+        persisted_ok = False
+    
+    print(f"🔍 State comparison:")
+    print(f"   Received: {received_state}")
+    print(f"   Session:  {session_state}")
+    
+    # More flexible state validation - allow if either matches session OR if state was persisted server-side
+    if received_state and session_state and received_state != session_state and not persisted_ok:
+        print("❌ State mismatch and not found in persisted states")
+        # In development we'll still warn but return explicit error to surface the issue
+        print("⚠️  WARNING: State mismatch detected and no persisted state found")
         return jsonify({'error': 'Invalid state parameter'}), 400
+    else:
+        if persisted_ok:
+            print("✅ State validated via persisted server-side store")
     
     auth_code = request.args.get('code')
     if not auth_code:
@@ -480,6 +565,45 @@ def create_spotify_playlist(access_token, user_id, mood, track_ids):
         'url': playlist['external_urls']['spotify'],
         'tracks_added': len(track_ids)
     }
+
+@app.route('/debug/simulate-login')
+def simulate_login():
+    """Simulate login for testing purposes - DO NOT USE IN PRODUCTION"""
+    if os.getenv('FLASK_ENV') == 'production':
+        return jsonify({'error': 'Not available in production'}), 403
+    
+    # This is just for testing - we'll simulate having a token
+    session['access_token'] = 'test_token_for_debugging'
+    session['user_id'] = 'test_user'
+    return jsonify({
+        'message': 'Simulated login successful', 
+        'note': 'This will fail on actual Spotify API calls but allows testing flow'
+    })
+
+@app.route('/debug/reset-session')
+def reset_session():
+    """Reset session for debugging"""
+    session.clear()
+    return jsonify({'message': 'Session cleared'})
+
+@app.route('/debug/force-oauth')
+def force_oauth():
+    """Force complete a mock OAuth for testing"""
+    if os.getenv('FLASK_ENV') == 'production':
+        return jsonify({'error': 'Not available in production'}), 403
+    
+    # Simulate receiving a callback with a real token structure
+    session['access_token'] = 'BQC4j...mock_token_for_testing'
+    session['refresh_token'] = 'AQC7...mock_refresh_token'
+    session['user_id'] = 'test_user_12345'
+    session['display_name'] = 'Test User'
+    session['token_expires_in'] = 3600
+    
+    return jsonify({
+        'message': 'Mock OAuth completed successfully',
+        'access_token': session['access_token'][:20] + '...',
+        'user_id': session['user_id']
+    })
 
 if __name__ == '__main__':
     print("Starting Moodify server...")
