@@ -6,10 +6,16 @@ import os
 import json
 from dotenv import load_dotenv
 from urllib.parse import urlencode
+import google.generativeai as genai
 
 load_dotenv()
 
-app = Flask(__name__, static_folder='../static', static_url_path='/static')
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+
+app = Flask(__name__, 
+           static_folder=os.path.join(project_root, 'static'), 
+           static_url_path='/static')
 app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(16))
 
 SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
@@ -17,13 +23,17 @@ SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI', 'http://localhost:5000/callback')
 SPOTIFY_SCOPE = 'playlist-modify-public playlist-modify-private user-read-private user-read-email'
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
 SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize'
 SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token'
 SPOTIFY_API_BASE = 'https://api.spotify.com/v1'
 
 @app.route('/')
 def index():
-    return send_from_directory('../frontend', 'index.html')
+    return send_from_directory(os.path.join(project_root, 'frontend'), 'index.html')
 
 @app.route('/login')
 def login():
@@ -117,7 +127,7 @@ def mood_page():
     if 'access_token' not in session:
         return redirect('/')
     
-    return send_from_directory('../frontend', 'mood.html')
+    return send_from_directory(os.path.join(project_root, 'frontend'), 'mood.html')
 
 @app.route('/api/recommendations')
 def get_recommendations():
@@ -208,53 +218,43 @@ def get_ai_mood_analysis(mood):
     if not GEMINI_API_KEY:
         return None
     
-    prompt = f"""
-    Analyze this mood description and return ONLY a JSON object with Spotify audio features and genres.
-    
-    Mood: "{mood}"
-    
-    Return format (must be valid JSON):
-    {{
-        "genres": ["genre1", "genre2"],
-        "audio_features": {{
-            "valence": 0.0-1.0,
-            "energy": 0.0-1.0,
-            "danceability": 0.0-1.0
-        }}
-    }}
-    
-    Available genres: pop, rock, hip-hop, electronic, indie, alternative, r-n-b, country, jazz, blues, classical, reggae, punk, metal, folk, ambient, chill, dance, house, techno, disco, funk, soul, gospel, latin, world-music, new-age, singer-songwriter
-    
-    Valence: 0.0 = sad/negative, 1.0 = happy/positive
-    Energy: 0.0 = calm/peaceful, 1.0 = energetic/intense  
-    Danceability: 0.0 = not danceable, 1.0 = very danceable
-    """
-    
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+        model = genai.GenerativeModel('gemini-pro')
         
-        data = {
-            "contents": [{
-                "parts": [{"text": prompt}]
-            }]
-        }
+        prompt = f"""
+        Analyze this mood description and return ONLY a JSON object with Spotify audio features and genres.
         
-        response = requests.post(url, json=data)
+        Mood: "{mood}"
         
-        if response.status_code == 200:
-            result = response.json()
-            text = result['candidates'][0]['content']['parts'][0]['text']
-            
-            text = text.strip()
-            if text.startswith('```json'):
-                text = text[7:]
-            if text.endswith('```'):
-                text = text[:-3]
-            text = text.strip()
-            
-            parsed = json.loads(text)
-            return parsed
-            
+        Return format (must be valid JSON):
+        {{
+            "genres": ["genre1", "genre2"],
+            "audio_features": {{
+                "valence": 0.0-1.0,
+                "energy": 0.0-1.0,
+                "danceability": 0.0-1.0
+            }}
+        }}
+        
+        Available genres: pop, rock, hip-hop, electronic, indie, alternative, r-n-b, country, jazz, blues, classical, reggae, punk, metal, folk, ambient, chill, dance, house, techno, disco, funk, soul, gospel, latin, world-music, new-age, singer-songwriter
+        
+        Valence: 0.0 = sad/negative, 1.0 = happy/positive
+        Energy: 0.0 = calm/peaceful, 1.0 = energetic/intense  
+        Danceability: 0.0 = not danceable, 1.0 = very danceable
+        """
+        
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+        
+        if text.startswith('```json'):
+            text = text[7:]
+        if text.endswith('```'):
+            text = text[:-3]
+        text = text.strip()
+        
+        parsed = json.loads(text)
+        return parsed
+        
     except Exception as e:
         print(f"AI mood analysis failed: {e}")
         return None
