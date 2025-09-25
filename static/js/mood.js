@@ -25,10 +25,19 @@ document.addEventListener('DOMContentLoaded', function() {
         showLoading();
         
         try {
-            const response = await fetch('/api/recommendations?mood=' + encodeURIComponent(mood));
+            const response = await fetch('http://127.0.0.1:5000/api/recommendations?mood=' + encodeURIComponent(mood));
             const data = await response.json();
             
             hideLoading();
+            
+            if (response.status === 401) {
+                // Not authenticated - redirect to login
+                showError('Please log in with Spotify first');
+                setTimeout(() => {
+                    window.location.href = 'http://127.0.0.1:5000/login';
+                }, 2000);
+                return;
+            }
             
             if (data.error) {
                 showError(data.error);
@@ -119,7 +128,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     window.createSpotifyPlaylist = async function(mood, trackIds) {
         try {
-            const response = await fetch('/api/create_playlist', {
+            const response = await fetch('http://127.0.0.1:5000/api/create_playlist', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
