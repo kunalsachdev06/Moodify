@@ -3,6 +3,7 @@ import requests
 import base64
 import secrets
 import os
+import json
 from dotenv import load_dotenv
 from urllib.parse import urlencode
 
@@ -15,6 +16,7 @@ SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('REDIRECT_URI', 'http://localhost:5000/callback')
 SPOTIFY_SCOPE = 'playlist-modify-public playlist-modify-private user-read-private user-read-email'
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize'
 SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token'
 SPOTIFY_API_BASE = 'https://api.spotify.com/v1'
@@ -167,6 +169,13 @@ def get_spotify_recommendations(access_token, mood):
     return tracks
 
 def parse_mood_to_spotify_params(mood):
+    try:
+        ai_params = get_ai_mood_analysis(mood)
+        if ai_params:
+            return ai_params
+    except:
+        pass
+    
     mood_lower = mood.lower()
     
     if any(word in mood_lower for word in ['chill', 'calm', 'relax', 'peaceful']):
@@ -194,6 +203,61 @@ def parse_mood_to_spotify_params(mood):
             'genres': ['pop'],
             'audio_features': {'valence': 0.5, 'energy': 0.5, 'danceability': 0.5}
         }
+
+def get_ai_mood_analysis(mood):
+    if not GEMINI_API_KEY:
+        return None
+    
+    prompt = f"""
+    Analyze this mood description and return ONLY a JSON object with Spotify audio features and genres.
+    
+    Mood: "{mood}"
+    
+    Return format (must be valid JSON):
+    {{
+        "genres": ["genre1", "genre2"],
+        "audio_features": {{
+            "valence": 0.0-1.0,
+            "energy": 0.0-1.0,
+            "danceability": 0.0-1.0
+        }}
+    }}
+    
+    Available genres: pop, rock, hip-hop, electronic, indie, alternative, r-n-b, country, jazz, blues, classical, reggae, punk, metal, folk, ambient, chill, dance, house, techno, disco, funk, soul, gospel, latin, world-music, new-age, singer-songwriter
+    
+    Valence: 0.0 = sad/negative, 1.0 = happy/positive
+    Energy: 0.0 = calm/peaceful, 1.0 = energetic/intense  
+    Danceability: 0.0 = not danceable, 1.0 = very danceable
+    """
+    
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+        
+        data = {
+            "contents": [{
+                "parts": [{"text": prompt}]
+            }]
+        }
+        
+        response = requests.post(url, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            text = result['candidates'][0]['content']['parts'][0]['text']
+            
+            text = text.strip()
+            if text.startswith('```json'):
+                text = text[7:]
+            if text.endswith('```'):
+                text = text[:-3]
+            text = text.strip()
+            
+            parsed = json.loads(text)
+            return parsed
+            
+    except Exception as e:
+        print(f"AI mood analysis failed: {e}")
+        return None
 
 @app.route('/api/create_playlist', methods=['POST'])
 def create_playlist():
