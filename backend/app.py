@@ -33,7 +33,8 @@ SPOTIFY_API_BASE = 'https://api.spotify.com/v1'
 
 @app.route('/')
 def index():
-    return send_from_directory(os.path.join(project_root, 'frontend'), 'index.html')
+    frontend_dir = os.path.join(project_root, 'frontend')
+    return send_from_directory(frontend_dir, 'index.html')
 
 @app.route('/login')
 def login():
@@ -127,7 +128,8 @@ def mood_page():
     if 'access_token' not in session:
         return redirect('/')
     
-    return send_from_directory(os.path.join(project_root, 'frontend'), 'mood.html')
+    frontend_dir = os.path.join(project_root, 'frontend')
+    return send_from_directory(frontend_dir, 'mood.html')
 
 @app.route('/api/recommendations')
 def get_recommendations():
