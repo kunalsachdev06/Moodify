@@ -115,6 +115,13 @@ Moodify follows a minimalist design approach with:
 - **Responsive Layout**: Works seamlessly on desktop and mobile
 - **Clean Typography**: Readable and modern font choices
 
+## 🔒 Security
+
+- Never commit API keys or sensitive credentials to version control
+- Use environment variables for all configuration
+- The `.env` file is ignored by git for security
+- If you accidentally commit credentials, immediately revoke them and generate new ones
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
