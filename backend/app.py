@@ -174,11 +174,75 @@ def get_recommendations():
     mood = request.args.get('mood')
     if not mood:
         return jsonify({'error': 'Mood parameter required'}), 400
-    return jsonify({
-        'mood': mood,
-        'message': 'Playlist generation coming soon!',
-        'tracks': []
-    })
+    try:
+        tracks = get_spotify_recommendations(session['access_token'], mood)
+        return jsonify({
+            'mood': mood,
+            'tracks': tracks
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def get_spotify_recommendations(access_token, mood):
+    headers = {'Authorization': f'Bearer {access_token}'}
+    
+    mood_params = parse_mood_to_spotify_params(mood)
+    
+    params = {
+        'limit': 20,
+        'seed_genres': mood_params.get('genres', ['pop']),
+        **mood_params.get('audio_features', {})
+    }
+    
+    response = requests.get(f'{SPOTIFY_API_BASE}/recommendations', headers=headers, params=params)
+    
+    if response.status_code != 200:
+        raise Exception(f'Failed to get recommendations: {response.text}')
+    
+    data = response.json()
+    tracks = []
+    
+    for track in data.get('tracks', []):
+        tracks.append({
+            'id': track['id'],
+            'name': track['name'],
+            'artist': ', '.join([artist['name'] for artist in track['artists']]),
+            'album': track['album']['name'],
+            'image': track['album']['images'][0]['url'] if track['album']['images'] else None,
+            'preview_url': track.get('preview_url'),
+            'external_url': track['external_urls']['spotify']
+        })
+    
+    return tracks
+
+def parse_mood_to_spotify_params(mood):
+    mood_lower = mood.lower()
+    
+    if any(word in mood_lower for word in ['chill', 'calm', 'relax', 'peaceful']):
+        return {
+            'genres': ['ambient', 'chill'],
+            'audio_features': {'valence': 0.3, 'energy': 0.2, 'danceability': 0.3}
+        }
+    elif any(word in mood_lower for word in ['happy', 'upbeat', 'energetic', 'party']):
+        return {
+            'genres': ['pop', 'dance'],
+            'audio_features': {'valence': 0.8, 'energy': 0.8, 'danceability': 0.7}
+        }
+    elif any(word in mood_lower for word in ['sad', 'melancholy', 'depressed', 'blue']):
+        return {
+            'genres': ['indie', 'alternative'],
+            'audio_features': {'valence': 0.2, 'energy': 0.3, 'danceability': 0.2}
+        }
+    elif any(word in mood_lower for word in ['workout', 'gym', 'exercise', 'run']):
+        return {
+            'genres': ['hip-hop', 'electronic'],
+            'audio_features': {'valence': 0.7, 'energy': 0.9, 'danceability': 0.8}
+        }
+    else:
+        return {
+            'genres': ['pop'],
+            'audio_features': {'valence': 0.5, 'energy': 0.5, 'danceability': 0.5}
+        }
 
 if __name__ == '__main__':
     print("Starting Moodify server...")
