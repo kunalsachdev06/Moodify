@@ -244,6 +244,60 @@ def parse_mood_to_spotify_params(mood):
             'audio_features': {'valence': 0.5, 'energy': 0.5, 'danceability': 0.5}
         }
 
+@app.route('/api/create_playlist', methods=['POST'])
+def create_playlist():
+    if 'access_token' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    data = request.get_json()
+    mood = data.get('mood')
+    track_ids = data.get('track_ids', [])
+    
+    if not mood or not track_ids:
+        return jsonify({'error': 'Mood and track_ids required'}), 400
+    
+    try:
+        playlist = create_spotify_playlist(session['access_token'], session['user_id'], mood, track_ids)
+        return jsonify(playlist)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def create_spotify_playlist(access_token, user_id, mood, track_ids):
+    headers = {'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}
+    
+    playlist_name = f"{mood.title()} Vibes"
+    
+    playlist_data = {
+        'name': playlist_name,
+        'description': f'Generated playlist for {mood} mood',
+        'public': False
+    }
+    
+    response = requests.post(f'{SPOTIFY_API_BASE}/users/{user_id}/playlists', 
+                           headers=headers, json=playlist_data)
+    
+    if response.status_code != 201:
+        raise Exception(f'Failed to create playlist: {response.text}')
+    
+    playlist = response.json()
+    playlist_id = playlist['id']
+    
+    track_uris = [f'spotify:track:{track_id}' for track_id in track_ids]
+    tracks_data = {'uris': track_uris}
+    
+    response = requests.post(f'{SPOTIFY_API_BASE}/playlists/{playlist_id}/tracks',
+                           headers=headers, json=tracks_data)
+    
+    if response.status_code != 201:
+        raise Exception(f'Failed to add tracks to playlist: {response.text}')
+    
+    return {
+        'id': playlist_id,
+        'name': playlist_name,
+        'url': playlist['external_urls']['spotify'],
+        'tracks_added': len(track_ids)
+    }
+
 if __name__ == '__main__':
     print("Starting Moodify server...")
     print(f"Spotify Client ID: {SPOTIFY_CLIENT_ID[:8]}...")
