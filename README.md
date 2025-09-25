@@ -25,14 +25,25 @@ Transform your feelings into the perfect soundtrack. Moodify is an intelligent m
    ```
 
 3. **Set up environment variables**
-   Create a `.env` file in the project root:
-   ```env
-   SPOTIFY_CLIENT_ID=your_spotify_client_id
-   SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-   GEMINI_API_KEY=your_gemini_api_key
-   REDIRECT_URI=http://localhost:5000/callback
-   FLASK_SECRET_KEY=your_secret_key
+   
+   Copy the example environment file and add your API keys:
+   ```bash
+   cp .env.example .env
    ```
+   
+   Then edit `.env` with your actual API credentials:
+   - **Spotify API**: Get your Client ID and Secret from [Spotify Developer Dashboard](https://developer.spotify.com/)
+   - **Gemini API**: Get your API key from [Google AI Studio](https://ai.google.dev/)
+   
+   ```env
+   SPOTIFY_CLIENT_ID=your_actual_spotify_client_id
+   SPOTIFY_CLIENT_SECRET=your_actual_spotify_client_secret
+   GEMINI_API_KEY=your_actual_gemini_api_key
+   REDIRECT_URI=http://localhost:5000/callback
+   FLASK_SECRET_KEY=generate_a_random_secret_key
+   ```
+   
+   ⚠️ **Important**: Never commit your `.env` file to version control!
 
 4. **Run the application**
    ```bash
