@@ -153,12 +153,40 @@ def mood_page():
         <div id="result"></div>
         
         <script>
-            document.getElementById('moodForm').addEventListener('submit', function(e) {{
+            document.getElementById('moodForm').addEventListener('submit', async function(e) {{
                 e.preventDefault();
                 const mood = document.getElementById('moodInput').value;
                 if (mood) {{
-                    document.getElementById('result').innerHTML = '<p>Generating playlist for: ' + mood + '</p>';
-
+                    document.getElementById('result').innerHTML = '<p>Loading...</p>';
+                    
+                    try {{
+                        const response = await fetch('/api/recommendations?mood=' + encodeURIComponent(mood));
+                        const data = await response.json();
+                        
+                        if (data.tracks && data.tracks.length > 0) {{
+                            let html = '<h3>Your Playlist:</h3><div class="tracks">';
+                            data.tracks.forEach(track => {{
+                                html += `
+                                    <div class="track" style="border: 1px solid #ccc; margin: 10px; padding: 15px; border-radius: 8px;">
+                                        ${{track.image ? '<img src="' + track.image + '" alt="Album" style="width: 60px; height: 60px; border-radius: 4px; float: left; margin-right: 15px;">' : ''}}
+                                        <div>
+                                            <strong>${{track.name}}</strong><br>
+                                            <span>${{track.artist}}</span><br>
+                                            <small>${{track.album}}</small><br>
+                                            ${{track.preview_url ? '<audio controls style="margin-top: 5px;"><source src="' + track.preview_url + '" type="audio/mpeg"></audio>' : ''}}
+                                        </div>
+                                        <div style="clear: both;"></div>
+                                    </div>
+                                `;
+                            }});
+                            html += '</div>';
+                            document.getElementById('result').innerHTML = html;
+                        }} else {{
+                            document.getElementById('result').innerHTML = '<p>No tracks found for this mood. Try a different description!</p>';
+                        }}
+                    }} catch (error) {{
+                        document.getElementById('result').innerHTML = '<p>Error generating playlist. Please try again.</p>';
+                    }}
                 }}
             }});
         </script>
